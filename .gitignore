@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# SECRETS — never commit these
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+config/api_keys.json
+config/*.local.json
+config/credentials*.json
+config/token*.json
+config/client_secret*.json
+*.pem
+*.key
+*credentials*.json
+*token*.json
+
+# ---------------------------------------------------------------------------
+# Runtime state — machine-specific, not source
+# ---------------------------------------------------------------------------
+memory/long_term.json
+memory/*.db
+memory/*.sqlite3
+logs/
+*.log
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
