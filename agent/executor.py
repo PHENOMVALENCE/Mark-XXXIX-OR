@@ -171,6 +171,30 @@ def _translate_to_goal_language(content: str, goal: str) -> str:
         print(f"[Executor] ⚠️ Translation failed: {e}")
         return content
 
+# Every tool _call_tool dispatches. Kept beside the dispatch chain so the two
+# cannot drift; the planner prompt previously carried its own hand-maintained
+# copy and had already drifted to advertise a tool that does not exist.
+KNOWN_TOOLS: tuple[str, ...] = (
+    "open_app",
+    "web_search",
+    "game_updater",
+    "browser_control",
+    "file_controller",
+    "code_helper",
+    "dev_agent",
+    "screen_process",
+    "send_message",
+    "reminder",
+    "youtube_video",
+    "weather_report",
+    "computer_settings",
+    "desktop_control",
+    "computer_control",
+    "generated_code",
+    "flight_finder",
+)
+
+
 def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
 
     if tool == "open_app":
@@ -190,10 +214,6 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
     elif tool == "file_controller":
         from actions.file_controller import file_controller
         return file_controller(parameters=parameters, player=None) or "Done."
-
-    elif tool == "cmd_control":
-        from actions.cmd_control import cmd_control
-        return cmd_control(parameters=parameters, player=None) or "Done."
 
     elif tool == "code_helper":
         from actions.code_helper import code_helper
@@ -247,8 +267,15 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
         return flight_finder(parameters=parameters, player=None, speak=speak) or "Done."
 
     else:
-        print(f"[Executor] ⚠️ Unknown tool '{tool}' — falling back to generated_code")
-        return _run_generated_code(f"Accomplish this task: {parameters}", speak=speak)
+        # An unrecognised tool name used to fall through to _run_generated_code,
+        # which asks a model to write Python and then executes it unsandboxed.
+        # That turned any hallucinated tool name into arbitrary code execution
+        # against the user's home directory, with no confirmation. Fail loudly
+        # instead; the error reaches the recovery path, which replans.
+        # generated_code remains available when a plan asks for it explicitly.
+        raise ValueError(
+            f"Unknown tool '{tool}'. Available tools: {', '.join(KNOWN_TOOLS)}."
+        )
 
 class AgentExecutor:
 

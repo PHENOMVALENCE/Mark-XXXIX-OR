@@ -118,11 +118,15 @@ uses it in two of its worked examples. Every `agent_task` plan that follows the
 prompt's own guidance raises `ModuleNotFoundError`, burns two replan attempts,
 and fails.
 
-### 3.5 `face.png` is missing — *verified*
+### 3.5 `face.png` is missing — *verified, but not a defect*
 
-`main.py:872` passes `"face.png"`; no such file is in the repository.
-`HudCanvas._load_face` swallows the exception, so the HUD renders with an empty
-centre and no error is shown.
+`main.py:872` passes `"face.png"`; no such file is in the repository, and
+`HudCanvas._load_face` swallows the exception. However `paintEvent` has a
+complete fallback (`ui.py:443-456`) that draws a layered orb with the assistant
+name in the centre. That fallback — not a bitmap — is what every user of this
+repository actually sees.
+
+No fix needed. The name rendered in the orb becomes configurable in Phase 2.
 
 ### 3.6 Dead exception handler in `web_search`
 
