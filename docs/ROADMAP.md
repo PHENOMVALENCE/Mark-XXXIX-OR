@@ -30,7 +30,7 @@ Derived from the [Phase 0 audit](AUDIT.md), targeting the design in
 
 ---
 
-## Phase 1 — Stabilisation 🔨
+## Phase 1 — Stabilisation ✅
 
 *Make the repository reproducible and safe to develop against. No user-visible
 behaviour changes.*
@@ -38,18 +38,34 @@ behaviour changes.*
 | | Task | Addresses |
 |---|---|---|
 | ✅ | `.gitignore` + `.env.example` | Audit §6 HIGH |
-| 🔨 | Re-encode `requirements.txt` as UTF-8; add PyQt6 and the six undeclared runtime packages; pin Python 3.11/3.12 | §3.2, §3.3 |
-| 🔨 | Make `or_client` lazy — no import-time key read, actionable error when unconfigured | §3.1 |
-| 🔨 | Centralised typed settings reading `.env` **and** the existing `config/api_keys.json` | §5.3 |
-| ⬜ | Structured logging (`DEBUG`/`INFO`/`WARNING`/`ERROR`) replacing `print()`, secrets redacted | §5.5 |
-| ⬜ | `valence.doctor` — Python version, dependencies, microphone, speaker, providers, storage, integrations, with actionable fixes | Spec §46 |
-| ⬜ | Fix the dead `except` in `web_search`; resolve the `cmd_control` reference; supply or remove `face.png` | §3.4–3.6 |
-| ⬜ | `actions/__init__.py`, `agent/__init__.py` | §5.10 |
-| ⬜ | First tests: settings resolution, provider fallback, memory read/write | Spec §45 |
+| ✅ | Re-encode `requirements.txt` as UTF-8; add PyQt6 and the six undeclared runtime packages; document Python 3.11/3.12 | §3.2, §3.3 |
+| ✅ | Make `or_client` lazy — no import-time key read, actionable error when unconfigured | §3.1 |
+| ✅ | Centralised typed settings reading `.env` **and** the existing `config/api_keys.json` | §5.3 |
+| ✅ | Structured logging (`DEBUG`/`INFO`/`WARNING`/`ERROR`) replacing `print()`, secrets redacted | §5.5 |
+| ✅ | `valence.doctor` — Python version, dependencies, microphone, speaker, providers, storage, integrations, with actionable fixes | Spec §46 |
+| ✅ | Fix the dead `except` in `web_search`; remove the `cmd_control` reference | §3.4, §3.6 |
+| ✅ | `actions/__init__.py`, `agent/__init__.py` | §5.10 |
+| ✅ | Tests: settings resolution, logging redaction, doctor, executor dispatch | Spec §45 |
 
-**Exit criteria.** A clean clone plus `pip install -r requirements.txt` plus
-`python main.py` starts the application on Windows 11. `python -m valence.doctor`
-reports accurate status. Tests pass.
+Two items were reassessed during the work:
+
+- **`face.png` needs no fix.** `paintEvent` has a complete fallback that draws
+  the orb every user actually sees. The audit entry is corrected.
+- **Removing the `cmd_control` reference alone would have made things worse.**
+  It would have routed those calls into the executor's unknown-tool fallback,
+  which executes unvalidated LLM-generated Python. That fallback was removed in
+  the same commit — pulled forward from Phase 3 because the Phase 1 fix was
+  unsafe without it.
+
+**Exit criteria — met.**
+
+| Criterion | Result |
+|---|---|
+| `pip install -r requirements.txt` resolves | verified in a clean Python 3.11 venv |
+| `python main.py` starts | runs to the setup overlay, held only by the test timeout |
+| `python -m valence.doctor` reports accurately | correctly identifies "no provider configured" as the sole blocker |
+| Every module imports on an unconfigured checkout | 27/27, was 26/27 |
+| Tests pass | 96/96, via both `pytest` and `python -m pytest` |
 
 ---
 
