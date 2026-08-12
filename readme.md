@@ -64,6 +64,31 @@ python main.py
 
 ---
 
+## 🛠️ This Fork — VALENCE
+
+This fork is being progressively engineered into **VALENCE**, a voice-first
+personal operating layer for Windows 11: wake word, conversation sessions, a
+typed tool registry behind a central permission model, layered memory, and an
+original interface identity.
+
+Development happens on the `codex/master-changes` branch. `main` tracks upstream.
+
+| | |
+|---|---|
+| **Why this exists** | [docs/VISION.md](docs/VISION.md) |
+| **Where it stands** | [docs/STATUS.md](docs/STATUS.md) |
+| Target design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Phased plan | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Assessment of the upstream code | [docs/AUDIT.md](docs/AUDIT.md) |
+
+Check your environment at any time:
+
+```bash
+python -m valence.doctor
+```
+
+---
+
 ## ⚠️ License
 
 Personal and non-commercial use only.

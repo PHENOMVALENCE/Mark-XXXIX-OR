@@ -1,37 +1,43 @@
 import json
-import sys
 import time
 import base64
 import logging
-from pathlib import Path
 from typing import Optional
 
 import requests
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("openrouter_client")
+from valence.settings import BASE_DIR, LEGACY_KEYS_FILE, get_settings
 
-def _get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent
+logger = logging.getLogger("valence.providers.openrouter")
+
+API_KEY_PATH = LEGACY_KEYS_FILE
 
 
-BASE_DIR     = _get_base_dir()
-API_KEY_PATH = BASE_DIR / "config" / "api_keys.json"
+class OpenRouterNotConfigured(RuntimeError):
+    """Raised on first use when no OpenRouter API key is available.
+
+    Deliberately a subclass of RuntimeError so existing `except Exception`
+    handlers around tool calls keep working unchanged.
+    """
+
 
 def _load_api_key() -> str:
-    try:
-        with open(API_KEY_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        key = data.get("openrouter_api_key", "").strip()
-        if not key:
-            raise ValueError("openrouter_api_key is empty in api_keys.json")
+    """Resolve the OpenRouter key from .env, the environment, or api_keys.json.
+
+    Called lazily on first request, never at import. An unconfigured checkout
+    must import cleanly — the failure belongs at the point of use, with a
+    message that says what to do about it.
+    """
+    key = get_settings().openrouter_api_key.strip()
+    if key:
         return key
-    except FileNotFoundError:
-        raise RuntimeError(f"api_keys.json not found at: {API_KEY_PATH}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to load OpenRouter API key: {e}")
+
+    raise OpenRouterNotConfigured(
+        "No OpenRouter API key configured. Set OPENROUTER_API_KEY in "
+        f"{BASE_DIR / '.env'} (copy .env.example), or add "
+        f'"openrouter_api_key" to {API_KEY_PATH}. '
+        "Get a free key at https://openrouter.ai/keys"
+    )
 
 TEXT_MODELS: list[str] = [
     "nvidia/nemotron-3-super-120b-a12b:free",
@@ -81,13 +87,32 @@ _rate_limited: dict[str, float] = {}
 
 class OpenRouterClient:
 
-    def __init__(self) -> None:
-        self.api_key  = _load_api_key()
-        self._headers = {
+    def __init__(self, api_key: Optional[str] = None) -> None:
+        # Resolved on first use, not here. Constructing a client must never
+        # touch the filesystem or raise — that made the module unimportable
+        # on an unconfigured checkout and untestable without a key on disk.
+        self._api_key = api_key
+
+    @property
+    def api_key(self) -> str:
+        if not self._api_key:
+            self._api_key = _load_api_key()
+        return self._api_key
+
+    @property
+    def is_configured(self) -> bool:
+        """True if a key is available. Never raises — use this to degrade."""
+        if self._api_key:
+            return True
+        return bool(get_settings().openrouter_api_key.strip())
+
+    @property
+    def _headers(self) -> dict:
+        return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type":  "application/json",
-            "HTTP-Referer":  "https://github.com/mark-xxv",
-            "X-Title":       "MARK XXV",
+            "HTTP-Referer":  "https://github.com/PHENOMVALENCE/Mark-XXXIX-OR",
+            "X-Title":       get_settings().assistant.name.upper(),
         }
 
     def _is_rate_limited(self, model: str) -> bool:
@@ -172,6 +197,12 @@ class OpenRouterClient:
         temperature: float = DEFAULT_TEMPERATURE,
         response_format: Optional[dict] = None,
     ) -> str:
+        # Resolve the key up front. Without this, an unconfigured install would
+        # raise inside _call, get swallowed by its broad `except Exception`,
+        # and hang for minutes walking the whole pool before reporting a
+        # misleading "all models failed".
+        _ = self.api_key
+
         if model and not self._is_rate_limited(model):
             result = self._call(model, messages, max_tokens, temperature, response_format)
             if result:
@@ -191,8 +222,9 @@ class OpenRouterClient:
                 return result
 
         raise RuntimeError(
-            "[OpenRouter] All models failed or are rate-limited. "
-            "Check your API key and network connection."
+            f"Every model in the pool ({len(pool)}) failed or is rate-limited. "
+            "This usually means the API key is invalid, the network is "
+            "unreachable, or the free-tier quota is exhausted."
         )
 
     def chat(
@@ -324,12 +356,20 @@ class OpenRouterClient:
             "total_vision":  len(VISION_MODELS),
         }
 
+# Shared instance. Safe to construct at import — it resolves nothing until
+# the first request. Callers may still build their own for testing.
 client = OpenRouterClient()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     print("=" * 55)
-    print("  MARK XXV — OpenRouter Client Self-Test")
+    print("  OpenRouter Client — Self-Test")
     print("=" * 55)
+
+    if not client.is_configured:
+        print("\n  No OpenRouter API key configured. Set OPENROUTER_API_KEY")
+        print("  in .env (copy .env.example) and run this again.")
+        raise SystemExit(1)
 
     print("\n[TEST 1] Basic chat...")
     try:

@@ -1,21 +1,20 @@
 #web_search.py
-import json
-import sys
-from pathlib import Path
+from valence.log import get_logger
+from valence.settings import LEGACY_KEYS_FILE, get_settings
 
-def _get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+log = get_logger("actions.web_search")
 
-
-BASE_DIR        = _get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+API_CONFIG_PATH = LEGACY_KEYS_FILE
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example) or run: python -m valence.doctor"
+        )
+    return key
 
 
 def _gemini_search(query: str) -> str:
@@ -76,7 +75,7 @@ def _compare(items: list[str], aspect: str) -> str:
     try:
         return _gemini_search(query)
     except Exception as e:
-        print(f"[WebSearch] ⚠️ Gemini compare failed: {e} — falling back to DDG")
+        log.warning("Gemini compare failed (%s) - falling back to DuckDuckGo.", e)
 
     # DDG fallback: fetch results per item and merge
     all_results: dict[str, list] = {}
@@ -115,23 +114,34 @@ def web_search(
     if player:
         player.write_log(f"[Search] {query or ', '.join(items)}")
 
-    print(f"[WebSearch] 🔍 Query: {query!r}  Mode: {mode}")
-# replace: result = _gemini_search(query) block with:
+    log.info("Query: %r  Mode: %s", query, mode)
+
+    if mode == "compare" and items:
+        return _compare(items, aspect)
+
     try:
         from or_client import client
         result = client.chat(
             query,
             system="You are a web search assistant. Answer factually and concisely."
         )
-        print("[WebSearch] ✅ OpenRouter OK.")
+        log.info("OpenRouter answered.")
         return result
-    except Exception as e:
-        print(f"[WebSearch] ⚠️ OpenRouter failed ({e}) — trying DDG...")
+    except Exception as primary_error:
+        log.warning("OpenRouter failed (%s) - falling back to DuckDuckGo.", primary_error)
+
+    # Separate try, not a nested one. Previously the fallback lived inside the
+    # first handler with a second `except Exception` after it — which Python
+    # never reaches, so a DuckDuckGo failure escaped web_search() entirely
+    # instead of being reported to the user.
+    try:
         results = _ddg_search(query)
-        result  = _format_ddg(query, results)
-        print(f"[WebSearch] ✅ DDG: {len(results)} result(s).")
-        return result
-    
-    except Exception as e:
-        print(f"[WebSearch] ❌ All backends failed: {e}")
-        return f"Search failed, sir: {e}"
+        log.info("DuckDuckGo returned %d result(s).", len(results))
+        return _format_ddg(query, results)
+    except Exception as fallback_error:
+        log.error("Every search backend failed: %s", fallback_error)
+        return (
+            f"I couldn't search for '{query}' — both the AI provider and the "
+            "web search fallback are unavailable. This usually means there's "
+            "no network connection or no provider is configured."
+        )
