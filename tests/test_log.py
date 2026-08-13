@@ -22,6 +22,9 @@ from valence.log import RedactingFilter, SafeStreamHandler, get_logger, redact, 
     "secret, expected_label",
     [
         ("AIzaSyD-1234567890abcdefghijklmnopqrst", "<GEMINI_KEY>"),
+        # Google AI Studio's current format. Structurally identical to a real
+        # key, but every value here is a synthetic placeholder.
+        ("AQ.Ab8AAAAAAAAAAAAA-BBBBBBBBBBBBBBBBBBBBBBBBBBBB", "<GEMINI_KEY>"),
         ("sk-or-v1-0123456789abcdef0123456789abcdef", "<OPENROUTER_KEY>"),
         ("sk-ant-api03-0123456789abcdefghijklmnop", "<ANTHROPIC_KEY>"),
         ("sk-proj0123456789abcdefghijklmnop", "<API_KEY>"),
@@ -34,6 +37,15 @@ def test_provider_keys_are_redacted(secret, expected_label):
 
     assert secret not in result
     assert expected_label in result
+
+
+def test_both_gemini_key_formats_are_covered():
+    """Google issues two shapes. Missing either leaks a live key to disk."""
+    legacy = "AIzaSyD-1234567890abcdefghijklmnopqrst"
+    current = "AQ.Ab8AAAAAAAAAAAAA-BBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+
+    for key in (legacy, current):
+        assert key not in redact(f"connecting with {key}")
 
 
 def test_openrouter_key_is_not_swallowed_by_generic_pattern():
@@ -243,3 +255,46 @@ def test_setup_is_idempotent(tmp_path):
     setup_logging(log_dir=tmp_path, console=True)
 
     assert len(logging.getLogger("valence").handlers) == before
+
+
+# ---------------------------------------------------------------------------
+# Console hardening
+# ---------------------------------------------------------------------------
+
+def test_harden_console_requests_utf8_on_both_streams(monkeypatch):
+    """Regression guard for a crash that killed the voice thread.
+
+    An emoji in main.py's reconnect-loop print() raised UnicodeEncodeError
+    inside the asyncio task, taking down the entire audio pipeline before a
+    session was ever opened.
+    """
+    from valence import log as log_module
+
+    calls = []
+
+    class _Stream:
+        encoding = "cp1252"
+
+        def reconfigure(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(log_module.sys, "stdout", _Stream())
+    monkeypatch.setattr(log_module.sys, "stderr", _Stream())
+
+    log_module.harden_console()
+
+    assert len(calls) == 2
+    assert all(c["encoding"] == "utf-8" and c["errors"] == "replace" for c in calls)
+
+
+def test_harden_console_tolerates_streams_that_refuse(monkeypatch):
+    from valence import log as log_module
+
+    class _Stubborn:
+        def reconfigure(self, **kwargs):
+            raise ValueError("detached")
+
+    monkeypatch.setattr(log_module.sys, "stdout", _Stubborn())
+    monkeypatch.setattr(log_module.sys, "stderr", None)
+
+    log_module.harden_console()  # must not raise

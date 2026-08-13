@@ -22,6 +22,8 @@ except ImportError:
 
 from google import genai
 from google.genai import types
+from valence import models as valence_models
+from valence.settings import get_settings
 
 def get_base_dir():
     if getattr(sys, "frozen", False):
@@ -31,7 +33,7 @@ def get_base_dir():
 BASE_DIR        = get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
-LIVE_MODEL          = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+LIVE_MODEL          = valence_models.LIVE
 CHANNELS            = 1
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE          = 1024
@@ -52,15 +54,14 @@ SYSTEM_PROMPT = (
 
 
 def _get_api_key() -> str:
-    try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            keys = json.load(f)
-        key = keys.get("gemini_api_key", "")
-        if not key:
-            raise ValueError("gemini_api_key not found")
-        return key
-    except Exception as e:
-        raise RuntimeError(f"Could not load API key: {e}")
+    """Resolve the Gemini key via valence.settings so .env works too."""
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example), then check with: python -m valence.doctor"
+        )
+    return key
 
 
 def _get_camera_index() -> int:

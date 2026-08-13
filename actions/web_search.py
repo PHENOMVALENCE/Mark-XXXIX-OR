@@ -1,6 +1,7 @@
 #web_search.py
 from valence.log import get_logger
 from valence.settings import LEGACY_KEYS_FILE, get_settings
+from valence import models as valence_models
 
 log = get_logger("actions.web_search")
 
@@ -22,7 +23,7 @@ def _gemini_search(query: str) -> str:
 
     client   = genai.Client(api_key=_get_api_key())
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=valence_models.REASONING,
         contents=query,
         config={"tools": [{"google_search": {}}]},
     )

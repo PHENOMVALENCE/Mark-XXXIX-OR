@@ -62,10 +62,25 @@ Two items were reassessed during the work:
 | Criterion | Result |
 |---|---|
 | `pip install -r requirements.txt` resolves | verified in a clean Python 3.11 venv |
-| `python main.py` starts | runs to the setup overlay, held only by the test timeout |
-| `python -m valence.doctor` reports accurately | correctly identifies "no provider configured" as the sole blocker |
+| `python main.py` starts | **connects to the Live session in 1.6 s, microphone open at 16 kHz** |
+| `python -m valence.doctor` reports accurately | 12 ok, 2 warnings, 0 failures |
 | Every module imports on an unconfigured checkout | 27/27, was 26/27 |
-| Tests pass | 96/96, via both `pytest` and `python -m pytest` |
+| Tests pass | 120/120, via both `pytest` and `python -m pytest` |
+
+### Phase 1 addendum — live verification (2026-08-13)
+
+Configuring real keys exposed failures invisible to static analysis, fixed in
+[PR #2](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/2):
+
+| | Task | Addresses |
+|---|---|---|
+| ✅ | `valence.models` — every model ID in one verified registry, selected by role | Audit §3.7 |
+| ✅ | Replace the retired Gemini 2.5 family, which had broken the entire agent subsystem | Audit §3.7 |
+| ✅ | Rebuild the OpenRouter pools from the live catalogue, ordered by measured latency | Audit §3.7 |
+| ✅ | `valence.verify` — live provider check that opens a real Live session | Spec §46 |
+| ✅ | `harden_console()` — an emoji `print()` was killing the voice thread on first connect | §5.5 |
+| ✅ | Route nine modules through settings so `.env` installs actually work | §5.3 |
+| ✅ | Redact the current `AQ.` Gemini key format | §6 HIGH |
 
 ---
 
@@ -101,7 +116,7 @@ No Marvel-derived naming remains in user-facing text.
 | ⬜ | **Permission model** — levels 0–4, one central gate, approval flow | §6 CRITICAL |
 | ⬜ | Gate `generated_code`; remove the unknown-tool → code-execution fallback | §6 CRITICAL |
 | ⬜ | Structured audit log + Activity History view | §6 LOW |
-| ⬜ | Provider abstraction; consolidate onto `google-genai`, retire `google-generativeai` | §4 |
+| 🟡 | Provider abstraction; consolidate onto `google-genai`, retire `google-generativeai` | §4 — `valence.models` centralises IDs; the provider interface itself is still absent |
 | ⬜ | Fix reminder script injection; remove `shell=True` where avoidable | §6 HIGH/MEDIUM |
 | ⬜ | Tests: permission logic, tool schemas, command validation, provider routing |
 
@@ -165,20 +180,24 @@ Order per the specification, adjusted only where the codebase justifies it.
 
 ## What is blocked on you
 
-Nothing blocks Phases 1–9. Work continues through them autonomously.
+**Nothing.** Gemini and OpenRouter keys are configured and verified working, so
+Phases 2–9 can all proceed.
 
 These require your action before the corresponding phase can start:
 
 | Needed | For | Where to get it |
 |---|---|---|
-| Gemini API key | Voice, vision, planning — *needed to test anything end to end* | https://aistudio.google.com/apikey |
-| OpenRouter API key | Tool-side reasoning, memory extraction | https://openrouter.ai/keys |
 | Google Cloud project + OAuth client (Calendar, Gmail scopes) + consent screen | Phases 10–11 | https://console.cloud.google.com |
 | Spotify developer app (client id, secret, redirect URI) | Phase 12 | https://developer.spotify.com/dashboard |
 | GitHub personal access token | Phase 15 | GitHub → Settings → Developer settings |
 
 Put them in `.env` (copy `.env.example`). `.env` is git-ignored. Existing
 `config/api_keys.json` installations keep working — Phase 1 settings reads both.
+
+**Re-run `python -m valence.verify --models` whenever something starts failing
+for no visible reason.** Providers retire models on their own schedule; that is
+exactly how 15 of the 17 IDs in this repository went dead without anything
+noticing.
 
 **Decisions I will not make for you.** Which directories VALENCE may index and
 which are excluded; whether level-2 actions require confirmation; whether the

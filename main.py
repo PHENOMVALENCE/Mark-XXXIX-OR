@@ -31,6 +31,11 @@ from actions.dev_agent         import dev_agent
 from actions.web_search        import web_search as web_search_action
 from actions.computer_control  import computer_control
 from actions.game_updater      import game_updater
+from valence import models as valence_models
+from valence.log import get_logger, harden_console, setup_logging
+
+log = get_logger("app")
+from valence.settings import get_settings
 
 
 def get_base_dir():
@@ -42,7 +47,7 @@ def get_base_dir():
 BASE_DIR        = get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 PROMPT_PATH     = BASE_DIR / "core" / "prompt.txt"
-LIVE_MODEL          = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+LIVE_MODEL          = valence_models.LIVE
 CHANNELS            = 1
 SEND_SAMPLE_RATE    = 16000
 RECEIVE_SAMPLE_RATE = 24000
@@ -50,8 +55,19 @@ CHUNK_SIZE          = 1024
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    """Resolve the Gemini key from .env, the environment, or api_keys.json.
+
+    Routed through valence.settings so every configuration source works. This
+    previously read config/api_keys.json directly and raised FileNotFoundError
+    on a .env-only install.
+    """
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example), then check with: python -m valence.doctor"
+        )
+    return key
 
 
 def _load_system_prompt() -> str:
@@ -83,10 +99,10 @@ def _update_memory_async(user_text: str, jarvis_text: str) -> None:
         data = extract_memory(user_text, jarvis_text, api_key)
         if data:
             update_memory(data)
-            print(f"[Memory] ✅ {list(data.keys())}")
+            log.info("Memory updated: %s", list(data.keys()))
     except Exception as e:
         if "429" not in str(e):
-            print(f"[Memory] ⚠️ {e}")
+            log.warning("Memory update failed: %s", e)
 
 TOOL_DECLARATIONS = [
     {
@@ -579,7 +595,7 @@ class JarvisLive:
         name = fc.name
         args = dict(fc.args or {})
 
-        print(f"[JARVIS] 🔧 {name}  {args}")
+        log.info("Tool call: %s %s", name, args)
         self.ui.set_state("THINKING")
         if name == "save_memory":
             category = args.get("category", "notes")
@@ -587,7 +603,7 @@ class JarvisLive:
             value    = args.get("value", "")
             if key and value:
                 update_memory({category: {key: {"value": value}}})
-                print(f"[Memory] 💾 save_memory: {category}/{key} = {value}")
+                log.info("Memory saved: %s/%s", category, key)
             if not self.ui.muted:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
@@ -704,7 +720,7 @@ class JarvisLive:
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
 
-        print(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+        log.info("Tool result: %s -> %s", name, str(result)[:120])
 
         return types.FunctionResponse(
             id=fc.id, name=name,
@@ -717,7 +733,7 @@ class JarvisLive:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        print("[JARVIS] 🎤 Mic started")
+        log.info("Microphone task started.")
         loop = asyncio.get_event_loop()
 
         def callback(indata, frames, time_info, status):
@@ -738,15 +754,15 @@ class JarvisLive:
                 blocksize=CHUNK_SIZE,
                 callback=callback,
             ):
-                print("[JARVIS] 🎤 Mic stream open")
+                log.info("Microphone stream open (%d Hz).", SEND_SAMPLE_RATE)
                 while True:
                     await asyncio.sleep(0.1)
         except Exception as e:
-            print(f"[JARVIS] ❌ Mic: {e}")
+            log.error("Microphone failed: %s", e)
             raise
 
     async def _receive_audio(self):
-        print("[JARVIS] 👂 Recv started")
+        log.info("Receive task started.")
         out_buf, in_buf = [], []
 
         try:
@@ -793,7 +809,7 @@ class JarvisLive:
                     if response.tool_call:
                         fn_responses = []
                         for fc in response.tool_call.function_calls:
-                            print(f"[JARVIS] 📞 {fc.name}")
+                            log.debug("Tool requested: %s", fc.name)
                             fr = await self._execute_tool(fc)
                             fn_responses.append(fr)
                         await self.session.send_tool_response(
@@ -801,12 +817,12 @@ class JarvisLive:
                         )
 
         except Exception as e:
-            print(f"[JARVIS] ❌ Recv: {e}")
+            log.error("Receive loop failed: %s", e)
             traceback.print_exc()
             raise
 
     async def _play_audio(self):
-        print("[JARVIS] 🔊 Play started")
+        log.info("Playback task started.")
         loop = asyncio.get_event_loop()
 
         stream = sd.RawOutputStream(
@@ -822,7 +838,7 @@ class JarvisLive:
                 self.set_speaking(True)
                 await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
-            print(f"[JARVIS] ❌ Play: {e}")
+            log.error("Playback failed: %s", e)
             raise
         finally:
             self.set_speaking(False)
@@ -837,7 +853,7 @@ class JarvisLive:
 
         while True:
             try:
-                print("[JARVIS] 🔌 Connecting...")
+                log.info("Connecting to %s ...", LIVE_MODEL)
                 self.ui.set_state("THINKING")
                 config = self._build_config()
 
@@ -850,7 +866,7 @@ class JarvisLive:
                     self.audio_in_queue = asyncio.Queue()
                     self.out_queue      = asyncio.Queue(maxsize=10)
 
-                    print("[JARVIS] ✅ Connected.")
+                    log.info("Connected. Session live.")
                     self.ui.set_state("LISTENING")
                     self.ui.write_log("SYS: JARVIS online.")
 
@@ -860,15 +876,21 @@ class JarvisLive:
                     tg.create_task(self._play_audio())
                     
             except Exception as e:
-                print(f"[JARVIS] ⚠️ {e}")
+                log.error("Session error: %s", e)
                 traceback.print_exc()
 
             self.set_speaking(False)
             self.ui.set_state("THINKING")
-            print("[JARVIS] 🔄 Reconnecting in 3s...")
+            log.warning("Reconnecting in 3s ...")
             await asyncio.sleep(3)
 
 def main():
+    # Before anything prints. The upstream tree's emoji print() calls raise
+    # UnicodeEncodeError on a cp1252 console, and one of them sits inside the
+    # voice loop's reconnect path where it killed the whole audio thread.
+    harden_console()
+    setup_logging()
+
     ui = JarvisUI("face.png")
 
     def runner():
@@ -877,7 +899,7 @@ def main():
         try:
             asyncio.run(jarvis.run())
         except KeyboardInterrupt:
-            print("\n🔴 Shutting down...")
+            log.info("Shutting down.")
 
     threading.Thread(target=runner, daemon=True).start()
     ui.root.mainloop()

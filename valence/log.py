@@ -43,6 +43,9 @@ _BACKUP_COUNT = 3
 # being caught by the generic bearer-token pattern.
 _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bAIza[0-9A-Za-z_\-]{20,}"), "<GEMINI_KEY>"),
+    # Google AI Studio issues newer keys as "AQ." + base64url, not "AIza".
+    # Missing this meant a current-format Gemini key reached logs in plaintext.
+    (re.compile(r"\bAQ\.[0-9A-Za-z_\-]{20,}"), "<GEMINI_KEY>"),
     (re.compile(r"\bsk-or-v1-[0-9A-Za-z_\-]{20,}"), "<OPENROUTER_KEY>"),
     (re.compile(r"\bsk-ant-[0-9A-Za-z_\-]{20,}"), "<ANTHROPIC_KEY>"),
     (re.compile(r"\bsk-[0-9A-Za-z_\-]{20,}"), "<API_KEY>"),
@@ -148,6 +151,25 @@ def _prepare_stream(stream: Any) -> Any:
         except (ValueError, OSError):
             pass
     return stream
+
+
+def harden_console() -> None:
+    """Make stdout and stderr tolerate non-ASCII. Call once at startup.
+
+    The upstream tree contains ~200 ``print()`` calls carrying emoji. On a
+    Windows console using the legacy cp1252 code page — which is what you get
+    whenever stdout is redirected to a file or pipe — those raise
+    ``UnicodeEncodeError``.
+
+    That is not cosmetic. ``print("[...] 🔌 Connecting...")`` in main.py's
+    reconnect loop raised inside the asyncio task and killed the entire voice
+    thread on the first connection attempt, before a session was ever opened.
+
+    Converting every call site to structured logging is the real fix and is in
+    progress. This is the safety net that covers the ones not yet converted.
+    """
+    for name in ("stdout", "stderr"):
+        _prepare_stream(getattr(sys, name, None))
 
 
 # ---------------------------------------------------------------------------

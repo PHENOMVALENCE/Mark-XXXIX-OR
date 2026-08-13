@@ -13,6 +13,8 @@ from pathlib import Path
 
 import psutil
 
+from valence.settings import reload_settings
+
 from PyQt6.QtCore import (
     QEasingCurve, QMimeData, QObject, QPointF, QRectF, QSize, Qt,
     QTimer, QUrl, pyqtSignal,
@@ -1439,12 +1441,19 @@ class MainWindow(QMainWindow):
         self.hud.speaking = (state == "SPEAKING")
 
     def _check_config(self) -> bool:
-        if not API_FILE.exists(): return False
+        """Are we configured enough to start?
+
+        Asks valence.settings rather than reading config/api_keys.json
+        directly, so a .env-only install is recognised. Previously this
+        checked the JSON file alone, which left anyone who followed
+        .env.example stuck on the setup overlay forever with no explanation.
+
+        Gemini alone is sufficient to start — it drives the voice session.
+        Without OpenRouter, tool-side reasoning degrades to its fallbacks
+        rather than failing, so it should not block startup.
+        """
         try:
-            d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            return (bool(d.get("gemini_api_key")) and
-                    bool(d.get("openrouter_api_key")) and
-                    bool(d.get("os_system")))
+            return reload_settings().has_gemini
         except Exception:
             return False
 
@@ -1472,6 +1481,7 @@ class MainWindow(QMainWindow):
             }, indent=4),
             encoding="utf-8",
         )
+        reload_settings()
         self._ready = True
         if self._overlay:
             self._overlay.hide()

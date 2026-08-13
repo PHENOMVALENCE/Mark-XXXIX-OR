@@ -1,9 +1,11 @@
 # VALENCE — Project Status
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-13
 **Branch:** `codex/master-changes`
-**Open PR:** [#1 — Phase 0-1: repository audit, secret protection, and stabilisation](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/1) *(open, not merged)*
-**Position:** Phases 0 and 1 complete. Phase 2 not started.
+**Merged:** [#1 — Phase 0-1: audit, secret protection, stabilisation](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/1) *(merged 2026-08-12)*
+**Open PR:** [#2 — Live provider verification](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/2) *(open, not merged)*
+**Position:** Phases 0 and 1 complete, plus live provider verification.
+**The assistant runs.** Voice session confirmed working end to end.
 
 This is the living ledger. It records what is done with the evidence for it,
 what remains, and exactly where to resume. Update it at the end of every working
@@ -14,35 +16,47 @@ session.
 ## 1. Where things stand in one paragraph
 
 The upstream Mark-XXXIX-OR fork has been audited by execution, its install path
-repaired, its secrets protected, and its worst security hole closed. A
-configuration layer, a logging layer, a diagnostic command, and a 96-test suite
-now exist. Nothing user-facing has changed yet — the assistant still calls
-itself JARVIS and still has no permission model. **The single blocker to any
-end-to-end verification is that no Gemini or OpenRouter API key is configured**,
-so the voice loop has never been run.
+repaired, its secrets protected, and its worst security hole closed. Keys are
+now configured, and live verification found that **15 of the 17 hard-coded
+model IDs in the tree were dead** — the entire Gemini 2.5 family 404s for newly
+issued keys, which had silently broken the whole agent subsystem. Those are
+replaced by a verified central registry. **The assistant now starts, connects,
+and runs.** Nothing user-facing has changed yet: it still calls itself JARVIS
+and still has no permission model.
 
 ---
 
 ## 2. Blocked on you
 
-| Needed | Unblocks | Where to get it |
-|---|---|---|
-| **Gemini API key** | Voice session, vision, planning — and *any* real end-to-end testing | https://aistudio.google.com/apikey |
-| **OpenRouter API key** | Tool-side reasoning, memory extraction, web search quality | https://openrouter.ai/keys |
+**Nothing.** Gemini and OpenRouter keys are configured and verified working.
 
-```bash
-cp .env.example .env
-```
+> **Security note.** The keys pasted into chat on 2026-08-13 appeared in a
+> transcript and in screenshots. Treat them as exposed and rotate both when
+> convenient — revoke at
+> [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and
+> [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys), then
+> update `.env`. Nothing in the repository holds a key; `.env` is git-ignored
+> and was never committed.
 
-Then paste the keys into `.env`. It is git-ignored and will not be committed.
-Verify with:
+Later phases need more credentials (Google OAuth for Calendar and Gmail,
+Spotify app, GitHub token) but none of those block the next several phases.
+
+### Two commands worth knowing
 
 ```bash
 python -m valence.doctor
 ```
 
-Later phases need more (Google OAuth for Calendar and Gmail, Spotify app,
-GitHub token) but none of those block the next several phases of work.
+Offline, free, safe anywhere. Confirms a key is *present*.
+
+```bash
+python -m valence.verify --models
+```
+
+Makes real API calls. Confirms a key *works*, opens an actual Live voice
+session, and validates every model ID against the live catalogue. This is what
+found the 15 dead models. Worth re-running whenever something starts failing
+for no visible reason.
 
 ---
 
@@ -75,6 +89,21 @@ GitHub token) but none of those block the next several phases of work.
 | Unknown tool names no longer reach arbitrary code execution | `604df67` |
 | `web_search` fallback chain repaired, compare mode wired up | `58c4b53` |
 | `pytest.ini` so tests run under both invocations | `b082764` |
+| Vision, status ledger, documentation index | `a625f0b` |
+
+### Live verification — 2026-08-13 ✅
+
+Keys configured. Everything below was found by making real API calls, and
+none of it was visible without them.
+
+| Achievement | Commit |
+|---|---|
+| Current-format (`AQ.`) Gemini keys added to log redaction | `1ab71b1` |
+| `harden_console()` — emoji `print()` no longer kills the voice thread | `1ab71b1` |
+| `valence.models` — every model ID in one verified registry | `476d729` |
+| `valence.verify` — live provider check, opens a real Live session | `476d729` |
+| `.env` configuration actually reaches the app | `73611a1` |
+| `main.py` converted from `print()` to structured logging | `73611a1` |
 
 ### Verified working on this machine
 
@@ -88,19 +117,46 @@ Facts, not assessments:
   configured" as the sole blocker
 - **`web_search` works end to end with no API key** — OpenRouter fails with an
   actionable message, the DuckDuckGo fallback runs, 6 real results returned
-- **96 tests pass** under both `pytest` and `python -m pytest`
+- **120 tests pass** under both `pytest` and `python -m pytest`
 
-### Not verified — and why
+**With keys configured (2026-08-13):**
 
-Carried forward as a standing caveat until a key exists:
+- **The voice loop runs.** `python main.py` connects to the Live session in
+  1.6 s, opens the microphone at 16 kHz, and runs all four audio coroutines
+  without error. First confirmed successful run of the assistant.
+- **A real Live session returns audio and transcription** — verified
+  independently in ~1.2 s.
+- Gemini `fast` 1.1 s, `reasoning` 1.4 s, both callable.
+- OpenRouter round trip **1.5 s, down from 56.6 s** — the old pool led with
+  its slowest model on every call.
+- Model pools **10/10 text and 5/5 vision valid**, was 6/22 and 4/8.
+- `python -m valence.doctor` reports 12 ok, 2 warnings, 0 failures.
 
-- **No live API call has ever been made.** The voice session, planner, memory
-  extraction, and vision are assessed from code reading only.
+### What live verification found
+
+Nothing here was visible without a key. It is the reason the "add a key first"
+recommendation was worth following.
+
+| Finding | Consequence |
+|---|---|
+| The entire **Gemini 2.5 family 404s** for newly issued keys | Planner, replanner, error recovery, code generation, document processing, and Gemini-backed search were **all broken**, reported only as generic tool errors |
+| 16 of 22 OpenRouter text models, 4 of 8 vision models gone | Silent degradation to slowness, not an error |
+| Pool led with its **slowest** model (24.7 s) | Every call paid it first |
+| Vision pool listed **two text-only models** | Image requests sent to models that cannot accept images |
+| Emoji `print()` in the reconnect loop | **`UnicodeEncodeError` killed the whole voice thread** on the first connection attempt whenever stdout was redirected |
+| Nine modules read `config/api_keys.json` directly | A `.env`-only install — the documented path — left the UI stuck on the setup overlay forever |
+| Redaction missed the `AQ.` key format | A current-format Gemini key would be written to `logs/valence.log` in plaintext |
+
+### Still not verified — and why
+
 - **No desktop-acting tool has been executed** — `open_app`,
   `computer_settings`, `file_controller`, `send_message` all have real side
-  effects.
+  effects on the live machine.
+- **No spoken conversation has been held.** The session connects and the
+  microphone opens; nobody has talked to it yet. Tool calling over voice is
+  therefore still unproven.
 - **Playwright browser binaries are not installed**, so `browser_control` and
-  `flight_finder` are import-checked only.
+  `flight_finder` remain import-checked only. Run `playwright install`.
 
 ---
 
@@ -117,9 +173,9 @@ Every section of the specification, mapped to its current state.
 | 1 | Repository audit | ✅ | 0 | |
 | 2 | Technical documentation | ✅ | 0 | Living — updated each phase |
 | 29 | Secrets protection | 🟡 | 1 | `.gitignore` + `.env` done; Windows Credential Manager later |
-| 39 | Observability / structured logging | ✅ | 1 | `print()` still present in ~20 upstream modules |
+| 39 | Observability / structured logging | ✅ | 1 | `main.py` converted; ~180 `print()` remain in actions/agent |
 | 44 | Centralised configuration | 🟡 | 1 | Settings object exists; UI/voice/permission categories not yet wired |
-| 45 | Testing | 🟡 | 1 | 96 tests on new code; upstream modules untested |
+| 45 | Testing | 🟡 | 1 | 120 tests on new code; upstream modules untested |
 | 46 | Health check | ✅ | 1 | `python -m valence.doctor` |
 
 ### Identity and structure
@@ -135,7 +191,7 @@ Every section of the specification, mapped to its current state.
 | 30 | Audit log | ⬜ | 3 | |
 | 31 | Event-driven architecture | ⬜ | 3 | |
 | 32 | State machine | 🟡 | 3 | Bare strings, no transition rules |
-| 8 | Multi-model provider abstraction | 🟡 | 3 | Two SDKs used directly; one is retired |
+| 8 | Multi-model provider abstraction | 🟡 | 3 | `valence.models` centralises IDs; provider interface still absent |
 | 40 | Error experience | 🟡 | 3 | Started in `web_search`; raw errors still spoken elsewhere |
 | 41 | Offline behaviour | ⬜ | 3 | |
 
@@ -236,7 +292,7 @@ Carried from the audit, none yet fixed. Each has a phase.
 
 ---
 
-## 6. Resume here tomorrow
+## 6. Resume here
 
 **Next phase: Phase 2 — VALENCE identity.** Needs no credentials, no new
 dependencies, low risk. The `valence.settings.AssistantIdentity` plumbing built
@@ -262,10 +318,15 @@ Concrete first steps:
 **Then Phase 3**, where the permission model and tool registry land — that is
 where items 1–5 in §5 above get closed.
 
-**If a Gemini key is added first**, do this before Phase 2 instead: run the
-voice loop end to end and record what actually happens. Several audit findings
-about the voice pipeline are code-reading assessments that deserve confirmation,
-and the OpenRouter model pool (§5 item 6) can finally be validated.
+**Worth doing first, it takes a minute:** hold an actual spoken conversation
+with the assistant and watch `logs/valence.log`. The session connects and the microphone
+opens, but nobody has spoken to it yet, so voice-driven tool calling is still
+unproven. Any failure there changes Phase 4's priorities.
+
+```bash
+playwright install     # unblocks browser_control and flight_finder
+python main.py         # then talk to it
+```
 
 ---
 
@@ -274,3 +335,4 @@ and the OpenRouter model pool (§5 item 6) can finally be validated.
 | Date | Session | Outcome |
 |---|---|---|
 | 2026-08-12 | Phase 0 audit + Phase 1 stabilisation | 10 commits, 22 files, +3,284/−66, 96 tests. PR #1 opened. Two real bugs found in own code by own tests and fixed pre-commit. One audit finding (`face.png`) corrected after closer inspection. One Phase 3 security fix pulled forward because the Phase 1 fix was unsafe without it. |
+| 2026-08-13 | Live provider verification | Keys configured. Found 15 of 17 model IDs dead, a crash that killed the voice thread, a redaction gap for current-format Gemini keys, and nine modules bypassing the settings layer. Added `valence.models` and `valence.verify`. **First confirmed run of the assistant.** OpenRouter 56.6 s → 1.5 s. 5 commits, 120 tests. PR #1 merged by owner; PR #2 opened for this work. |
