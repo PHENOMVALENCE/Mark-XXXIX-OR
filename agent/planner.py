@@ -2,6 +2,8 @@ import json
 import re
 import sys
 from pathlib import Path
+from valence import models as valence_models
+from valence.settings import get_settings
 
 
 def get_base_dir() -> Path:
@@ -170,8 +172,19 @@ OUTPUT — return ONLY valid JSON, no markdown, no explanation, no code blocks:
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    """Resolve the Gemini key from .env, the environment, or api_keys.json.
+
+    Routed through valence.settings so every configuration source works. This
+    previously read config/api_keys.json directly and raised FileNotFoundError
+    on a .env-only install.
+    """
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example), then check with: python -m valence.doctor"
+        )
+    return key
 
 
 def create_plan(goal: str, context: str = "") -> dict:
@@ -179,7 +192,7 @@ def create_plan(goal: str, context: str = "") -> dict:
 
     genai.configure(api_key=_get_api_key())
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash-lite",
+        model_name=valence_models.FAST,
         system_instruction=PLANNER_PROMPT
     )
 
@@ -239,7 +252,7 @@ def replan(goal: str, completed_steps: list, failed_step: dict, error: str) -> d
 
     genai.configure(api_key=_get_api_key())
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name=valence_models.REASONING,
         system_instruction=PLANNER_PROMPT
     )
 

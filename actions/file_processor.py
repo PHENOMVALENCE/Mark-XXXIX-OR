@@ -26,17 +26,24 @@ from pathlib import Path
 from datetime import datetime
 
 import google.generativeai as genai
+from valence import models as valence_models
+from valence.settings import get_settings
 
 
 def _get_api_key() -> str:
-    config_path = Path(__file__).resolve().parent.parent / "config" / "api_keys.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    """Resolve the Gemini key via valence.settings so .env works too."""
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example), then check with: python -m valence.doctor"
+        )
+    return key
 
 
 def _gemini_client():
     genai.configure(api_key=_get_api_key())
-    return genai.GenerativeModel("gemini-2.5-flash")
+    return genai.GenerativeModel(valence_models.REASONING)
 
 
 def _detect_type(path: Path) -> str:

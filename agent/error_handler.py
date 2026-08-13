@@ -3,6 +3,8 @@ import re
 import sys
 from pathlib import Path
 from enum import Enum
+from valence import models as valence_models
+from valence.settings import get_settings
 
 
 def get_base_dir() -> Path:
@@ -50,8 +52,19 @@ Return ONLY valid JSON:
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    """Resolve the Gemini key from .env, the environment, or api_keys.json.
+
+    Routed through valence.settings so every configuration source works. This
+    previously read config/api_keys.json directly and raised FileNotFoundError
+    on a .env-only install.
+    """
+    key = get_settings().gemini_api_key
+    if not key:
+        raise RuntimeError(
+            "No Gemini API key configured. Set GEMINI_API_KEY in .env "
+            "(copy .env.example), then check with: python -m valence.doctor"
+        )
+    return key
 
 
 def analyze_error(
@@ -92,7 +105,7 @@ def analyze_error(
 
     genai.configure(api_key=_get_api_key())
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash-lite",
+        model_name=valence_models.FAST,
         system_instruction=ERROR_ANALYST_PROMPT
     )
 
@@ -151,7 +164,7 @@ def generate_fix(step: dict, error: str, fix_suggestion: str) -> dict:
     import google.generativeai as genai
 
     genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+    model = genai.GenerativeModel(model_name=valence_models.REASONING)
 
     prompt = f"""A task step failed. Generate a replacement step.
 
