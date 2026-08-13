@@ -292,7 +292,7 @@ Carried from the audit, none yet fixed. Each has a phase.
 
 ---
 
-## 6. Resume here tomorrow
+## 6. Resume here
 
 **Next phase: Phase 2 — VALENCE identity.** Needs no credentials, no new
 dependencies, low risk. The `valence.settings.AssistantIdentity` plumbing built
@@ -318,8 +318,8 @@ Concrete first steps:
 **Then Phase 3**, where the permission model and tool registry land — that is
 where items 1–5 in §5 above get closed.
 
-**Worth doing first, it is quick:** hold an actual spoken conversation with the
-assistant and watch `logs/valence.log`. The session connects and the microphone
+**Worth doing first, it takes a minute:** hold an actual spoken conversation
+with the assistant and watch `logs/valence.log`. The session connects and the microphone
 opens, but nobody has spoken to it yet, so voice-driven tool calling is still
 unproven. Any failure there changes Phase 4's priorities.
 
@@ -335,4 +335,4 @@ python main.py         # then talk to it
 | Date | Session | Outcome |
 |---|---|---|
 | 2026-08-12 | Phase 0 audit + Phase 1 stabilisation | 10 commits, 22 files, +3,284/−66, 96 tests. PR #1 opened. Two real bugs found in own code by own tests and fixed pre-commit. One audit finding (`face.png`) corrected after closer inspection. One Phase 3 security fix pulled forward because the Phase 1 fix was unsafe without it. |
-| 2026-08-13 | Live provider verification | Keys configured. Found 15 of 17 model IDs dead, a crash that killed the voice thread, a redaction gap for current-format Gemini keys, and nine modules bypassing the settings layer. Added `valence.models` and `valence.verify`. **First confirmed run of the assistant.** OpenRouter 56.6 s → 1.5 s. 3 commits, 120 tests. |
+| 2026-08-13 | Live provider verification | Keys configured. Found 15 of 17 model IDs dead, a crash that killed the voice thread, a redaction gap for current-format Gemini keys, and nine modules bypassing the settings layer. Added `valence.models` and `valence.verify`. **First confirmed run of the assistant.** OpenRouter 56.6 s → 1.5 s. 5 commits, 120 tests. PR #1 merged by owner; PR #2 opened for this work. |
