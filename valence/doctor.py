@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from valence import models as valence_models
 from valence.settings import BASE_DIR, ENV_FILE, LEGACY_KEYS_FILE, get_settings
 
 
@@ -368,6 +369,34 @@ def check_storage() -> list[Check]:
     return checks
 
 
+def check_models() -> Check:
+    """Report the configured models and catch a regression to a retired one.
+
+    Offline: this cannot prove a model is reachable, only that it is not one
+    already known to be dead. `python -m valence.verify` does the live check.
+    """
+    retired = [
+        f"{role}={value}"
+        for role, value in (("fast", valence_models.FAST),
+                            ("reasoning", valence_models.REASONING),
+                            ("live", valence_models.LIVE))
+        if value.removeprefix("models/") in valence_models.RETIRED_GEMINI
+    ]
+
+    if retired:
+        return Check(
+            "Model selection", Status.FAIL,
+            "configured with retired model(s): " + ", ".join(retired),
+            "These return 404 for keys issued after their retirement. Override "
+            "with VALENCE_MODEL_FAST / _REASONING / _LIVE in .env, or update "
+            "valence/models.py.",
+        )
+
+    return Check(
+        "Model selection", Status.OK, valence_models.describe(),
+    )
+
+
 def check_integrations() -> Check:
     """Report integrations that are designed but not yet built."""
     return Check(
@@ -389,6 +418,7 @@ def run_checks() -> list[Check]:
     checks += check_audio()
     checks.append(check_configuration())
     checks += check_providers()
+    checks.append(check_models())
     checks += check_storage()
     checks.append(check_integrations())
     return checks

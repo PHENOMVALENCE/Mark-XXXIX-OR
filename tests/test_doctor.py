@@ -230,3 +230,27 @@ def test_run_checks_produces_a_report_without_raising():
     assert checks
     assert all(isinstance(c, Check) for c in checks)
     format_report(checks).encode("ascii")
+
+
+# ---------------------------------------------------------------------------
+# Model selection
+# ---------------------------------------------------------------------------
+
+def test_model_check_passes_with_current_registry():
+    assert doctor.check_models().status is Status.OK
+
+
+def test_model_check_fails_on_a_retired_model(monkeypatch):
+    """Regression guard: the Gemini 2.5 family 404s for newly issued keys."""
+    monkeypatch.setattr(doctor.valence_models, "FAST", "gemini-2.5-flash-lite")
+
+    result = doctor.check_models()
+    assert result.status is Status.FAIL
+    assert "gemini-2.5-flash-lite" in result.detail
+    assert "VALENCE_MODEL_FAST" in result.fix
+
+
+def test_model_check_strips_models_prefix_before_comparing(monkeypatch):
+    monkeypatch.setattr(doctor.valence_models, "LIVE", "models/gemini-2.0-flash")
+
+    assert doctor.check_models().status is Status.FAIL
