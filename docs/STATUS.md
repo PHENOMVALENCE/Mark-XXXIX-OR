@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-08-13
 **Branch:** `codex/master-changes`
-**Open PR:** [#1 — Phase 0-1: repository audit, secret protection, and stabilisation](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/1) *(open, not merged)*
+**Merged:** [#1 — Phase 0-1: audit, secret protection, stabilisation](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/1) *(merged 2026-08-12)*
+**Open PR:** [#2 — Live provider verification](https://github.com/PHENOMVALENCE/Mark-XXXIX-OR/pull/2) *(open, not merged)*
 **Position:** Phases 0 and 1 complete, plus live provider verification.
 **The assistant runs.** Voice session confirmed working end to end.
 
